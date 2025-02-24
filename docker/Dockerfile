@@ -5,18 +5,22 @@ ARG HOST_GID=1000
 FROM eclipse-temurin:21-jdk-jammy AS builder
 WORKDIR /app
 COPY . .
+COPY .mvn/ .mvn
+COPY mvnw pom.xml ./
+RUN ./mvnw dependency:go-offline -B
+
 RUN apt-get update && \
     apt-get install -y maven
 
-# # Runtime stage
-# FROM eclipse-temurin:21-jre-jammy
-# COPY --from=builder /app/target/*.jar /app/app.jar
-# ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+# Runtime stage
+FROM eclipse-temurin:21-jre-jammy
+COPY --from=builder /app/target/*.jar /app/app.jar
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]
 
 # Development image
 FROM eclipse-temurin:21-jdk-jammy AS dev
 WORKDIR /app
-COPY --from=builder /app/target/dependency/ ./lib/
+# COPY --from=builder /app/target/dependency/ ./lib/
 COPY --from=builder /app/target/*.jar ./app.jar
 ARG HOST_UID
 ARG HOST_GID
