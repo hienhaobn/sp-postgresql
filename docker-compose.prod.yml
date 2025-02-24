@@ -1,0 +1,77 @@
+services:
+  app:
+    container_name: sp-postgresql-app
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: prod
+    restart: on-failure:5  # Giới hạn số lần restart
+    env_file: .env.${APP_ENV}    # Sử dụng file env riêng cho production
+    environment:
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILE}
+      - JAVA_OPTS=-Xmx512m -XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/./urandom
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - backend
+    # hạn chế quyền của container
+    security_opt:
+      - no-new-privileges:true
+      - seccomp:./docker/security-profiles/app-seccomp.json
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.00'
+          memory: 1G
+
+  db:
+    container_name: sp-postgresql-db
+    image: postgres:15-alpine
+    restart: unless-stopped
+    env_file: .env.${APP_ENV}
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - pgbackup:/backups  # Volume cho backup
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 20000
+        hard: 40000
+
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /mnt/data/postgres  # Mount point cụ thể
+  pgbackup:
+
+networks:
+  backend:
+    driver: bridge
+    name: app_backend
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
