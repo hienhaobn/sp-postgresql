@@ -6,23 +6,22 @@ services:
       dockerfile: docker/Dockerfile
       target: prod
     restart: on-failure:5  # Giới hạn số lần restart
-    env_file: .env.${APP_ENV}    # Sử dụng file env riêng cho production
+    env_file: .env.${APP_ENV}  # Sử dụng file env riêng cho production
     environment:
-      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILE}
-      - JAVA_OPTS=-Xmx512m -XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/./urandom
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILE}
+      JAVA_OPTS: "-Xmx512m -XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/./urandom"
     depends_on:
       db:
         condition: service_healthy
     networks:
       - backend
-    # hạn chế quyền của container
     security_opt:
       - no-new-privileges:true
       - seccomp:./docker/security-profiles/app-seccomp.json
     logging:
       driver: json-file
       options:
-        max-size: 10m
+        max-size: "10m"
         max-file: "3"
     deploy:
       resources:
@@ -36,9 +35,9 @@ services:
     restart: unless-stopped
     env_file: .env.${APP_ENV}
     environment:
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - pgbackup:/backups  # Volume cho backup
