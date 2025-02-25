@@ -49,14 +49,27 @@ CMD ["./mvnw", "spring-boot:run"]
 
 # Production image
 FROM eclipse-temurin:21-jre-jammy as prod
-WORKDIR /app
-COPY --from=builder /app/target/*.jar ./app.jar
-RUN groupadd -g ${HOST_GID} appgroup && \
-  useradd -u ${HOST_UID} -g appgroup -m -d /app appuser && \
-  chown -R ${HOST_UID}:${HOST_GID} /app && \
-  chmod 550 /app/app.jar
 
-USER appuser
+# Tạo nhóm và người dùng
+RUN groupadd -g 1000 appgroup && \
+    useradd -u 1000 -g appgroup -m -d /home/appuser appuser
+
+# Tạo thư mục làm việc
+WORKDIR /app
+
+# 1. Copy Maven Wrapper trước để tận dụng cache
+COPY .mvn/ .mvn
+COPY mvnw pom.xml ./
+
+# 2. Tạo thư mục .m2 trong thư mục home và thiết lập quyền
+RUN mkdir -p /home/appuser/.m2 && \
+    chown -R appuser:appgroup /home/appuser/.m2 && \
+    chmod +x mvnw && \
+    ./mvnw dependency:go-offline -B
+
+# 3. Copy source code
+COPY src src/
+
 EXPOSE 8080
 
 ENTRYPOINT ["java", "-jar", "app.jar"]

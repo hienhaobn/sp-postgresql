@@ -30,9 +30,23 @@ while IFS='=' read -r key value; do
 done < <(grep -v '^[[:space:]]*$' "$ENV_FILE")
 set +o allexport
 
-# Xây dựng và khởi động các dịch vụ với Docker Compose
-docker-compose --env-file "$ENV_FILE" -f docker-compose.prod.yml build --no-cache --pull
-docker-compose --env-file "$ENV_FILE" -f docker-compose.prod.yml up -d
+# Truyền build arguments đúng cách
+docker-compose --env-file "$ENV_FILE" -f docker-compose.prod.yml up --build --force-recreate
+
+# Chờ database healthy trước khi chạy smoke test
+echo "Đang chờ database khởi động..."
+timeout 180s bash -c "until docker-compose --env-file $ENV_FILE -f docker-compose.prod.yml exec -T db pg_isready -U $POSTGRES_USER -d $POSTGRES_DB; do sleep 5; done"
+
+# Thêm healthcheck cho PostgreSQL trong compose file
+docker-compose --env-file "$ENV_FILE" -f docker-compose.prod.yml up -d db
+
+# Chờ database healthy trước khi start app
+echo "Đang chờ database khởi động..."
+docker-compose --env-file "$ENV_FILE" -f docker-compose.prod.yml exec -T db \
+  bash -c 'while ! pg_isready -U $POSTGRES_USER -d $POSTGRES_DB; do sleep 2; done'
+
+# Khởi động app service
+docker-compose --env-file "$ENV_FILE" -f docker-compose.prod.yml up -d app
 
 # Thiết lập kiểm tra sức khỏe với số lần thử và khoảng thời gian giữa các lần thử
 MAX_RETRIES=5

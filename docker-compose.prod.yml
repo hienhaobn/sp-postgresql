@@ -28,6 +28,8 @@ services:
         limits:
           cpus: '2.00'
           memory: 1G
+    cap_add:
+      - SYS_PTRACE
 
   db:
     container_name: sp-postgresql-db
@@ -59,18 +61,8 @@ services:
 
 volumes:
   postgres_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /mnt/data/postgres  # Mount point cụ thể
   pgbackup:
 
 networks:
   backend:
     driver: bridge
-    name: app_backend
-    ipam:
-      driver: default
-      config:
-        - subnet: 172.28.0.0/16
