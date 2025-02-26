@@ -1,68 +1,54 @@
 services:
   app:
-    container_name: sp-postgresql-app
     build:
       context: .
       dockerfile: docker/Dockerfile
-      target: prod
-    restart: on-failure:5  # Giới hạn số lần restart
-    env_file: .env.${APP_ENV}  # Sử dụng file env riêng cho production
+    volumes:
+      - ./target:/app/target:ro
+    command: ["java", "-jar", "/app/target/app.jar"]
+    ports:
+      - "8080:8080"
+    env_file: 
+      - .env.${APP_ENV}
     environment:
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILE}
-      JAVA_OPTS: "-Xmx512m -XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/./urandom"
+      SPRING_PROFILES_ACTIVE: ${APP_ENV}
+      SERVER_PORT: 8080
     depends_on:
       db:
         condition: service_healthy
+    user: "appuser"
+    restart: always
     networks:
-      - backend
-    security_opt:
-      - no-new-privileges:true
-      - seccomp:./docker/security-profiles/app-seccomp.json
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    deploy:
-      resources:
-        limits:
-          cpus: '2.00'
-          memory: 1G
-    cap_add:
-      - SYS_PTRACE
+      - app_network
 
   db:
-    container_name: sp-postgresql-db
     image: postgres:15-alpine
-    restart: unless-stopped
     env_file: .env.${APP_ENV}
     environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - pgbackup:/backups  # Volume cho backup
-    networks:
-      - backend
+      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-user-db.sh
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U postgres || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 3
       start_period: 30s
     security_opt:
       - no-new-privileges:true
-    ulimits:
-      nproc: 65535
-      nofile:
-        soft: 20000
-        hard: 40000
+    networks:
+      - app_network
 
 volumes:
   postgres_data:
   pgbackup:
+  maven-cache:
 
 networks:
-  backend:
+  app_network:
     driver: bridge

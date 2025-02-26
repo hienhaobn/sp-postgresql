@@ -48,7 +48,7 @@ COPY src src/
 CMD ["./mvnw", "spring-boot:run"]
 
 # Production image
-FROM eclipse-temurin:21-jre-jammy as prod
+FROM eclipse-temurin:21-jdk-jammy AS prod
 
 # Tạo nhóm và người dùng
 RUN groupadd -g 1000 appgroup && \
